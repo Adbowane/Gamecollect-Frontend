@@ -1,13 +1,17 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:3000/api";
+const BASE_URL =
+  "https://408b-2a02-8440-b504-7488-f818-db7c-b996-1c43.ngrok-free.app/api";
 
 // Création de l'instance axios avec la configuration de base
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+    Accept: "application/json",
   },
+  timeout: 10000, // 10 secondes de timeout
 });
 
 // Intercepteur pour ajouter le token aux requêtes
@@ -24,10 +28,45 @@ api.interceptors.request.use(
   }
 );
 
+// Intercepteur pour gérer les réponses et erreurs
+api.interceptors.response.use(
+  (response) => {
+    console.log(
+      `✅ API Success: ${response.config.method?.toUpperCase()} ${
+        response.config.url
+      }`,
+      response.data
+    );
+    return response;
+  },
+  (error) => {
+    if (error.response) {
+      console.error(
+        `❌ API Error ${error.response.status}:`,
+        error.response.data
+      );
+    } else if (error.request) {
+      console.error("❌ No response from server:", error.request);
+    } else {
+      console.error("❌ Request setup error:", error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Services d'authentification
 export const authService = {
-  register: (userData) => api.post("/auth/register", userData),
-  login: (credentials) => api.post("/auth/login", credentials),
+  register: (userData) => {
+    console.log("📡 API - Envoi des données d'inscription:", userData);
+    console.log("📡 API - URL complète:", `${BASE_URL}/auth/register`);
+    return api.post("/auth/register", userData);
+  },
+  login: (credentials) => {
+    console.log("📡 API - Envoi des données de connexion:", {
+      email: credentials.email,
+    });
+    return api.post("/auth/login", credentials);
+  },
   logout: () => api.post("/auth/logout"),
 };
 

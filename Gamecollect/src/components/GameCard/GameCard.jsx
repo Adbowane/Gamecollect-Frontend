@@ -20,6 +20,22 @@ const GameCard = ({ game }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { mode } = useThemeMode();
 
+  // Déterminer l'URL de l'image
+  const imageUrl =
+    game.image ||
+    game.imageUrl ||
+    game.cover_image ||
+    game.picture ||
+    "https://via.placeholder.com/300x140";
+
+  console.log(`🖼️ Image pour "${game.title}":`, {
+    image: game.image,
+    imageUrl: game.imageUrl,
+    cover_image: game.cover_image,
+    picture: game.picture,
+    utilisée: imageUrl,
+  });
+
   // Pour l'instant, nous utiliserons des fonctions factices pour les actions
   const handleAddToWishlist = () => {
     console.log("Ajouter à la wishlist");
@@ -52,10 +68,20 @@ const GameCard = ({ game }) => {
           <CardMedia
             component="img"
             height={isMobile ? "200" : "140"}
-            image={game.image || "https://via.placeholder.com/300x140"}
+            image={
+              game.cover_image_url || "https://via.placeholder.com/300x140"
+            }
             alt={game.title}
             sx={{
               objectFit: "cover",
+            }}
+            onError={(e) => {
+              console.error(
+                `❌ Erreur de chargement d'image pour "${game.title}":`,
+                game.cover_image_url
+              );
+              e.target.src =
+                "https://via.placeholder.com/300x140?text=Image+Non+Disponible";
             }}
           />
         </Motion.div>

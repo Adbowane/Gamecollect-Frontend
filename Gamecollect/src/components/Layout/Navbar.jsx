@@ -14,69 +14,161 @@ import {
   useMediaQuery,
   Container,
   Divider,
+  Avatar,
+  Menu,
+  MenuItem,
 } from "@mui/material";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import MenuIcon from "@mui/icons-material/Menu";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import LogoutIcon from "@mui/icons-material/Logout";
 import ThemeSwitch from "../ThemeSwitch/ThemeSwitch";
+import { useAuth } from "../../contexts/AuthContext";
 
 const Navbar = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const menuItems = [
+  const handleUserMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = async () => {
+    handleUserMenuClose();
+    await logout();
+    navigate("/");
+  };
+
+  const publicMenuItems = [{ text: "Jeux", path: "/jeux" }];
+
+  const authenticatedMenuItems = [
     { text: "Jeux", path: "/jeux" },
     { text: "Ma Collection", path: "/ma-collection" },
     { text: "Wishlist", path: "/wishlist" },
-    { text: "Connexion", path: "/connexion" },
   ];
 
+  const menuItems = isAuthenticated ? authenticatedMenuItems : publicMenuItems;
+
+  // Menu mobile drawer
   const drawer = (
-    <Box sx={{ width: "100%", maxWidth: 300 }}>
+    <Box onClick={handleDrawerToggle} sx={{ textAlign: "center" }}>
+      <Typography variant="h6" sx={{ my: 2, color: "primary.main" }}>
+        GameCollect
+      </Typography>
+      <Divider />
       <List>
         {menuItems.map((item) => (
-          <ListItem
-            component={Link}
-            to={item.path}
-            key={item.text}
-            onClick={handleDrawerToggle}
-            sx={{
-              backgroundColor:
-                location.pathname === item.path
-                  ? "action.selected"
-                  : "transparent",
-              "&:hover": {
-                backgroundColor: "action.hover",
-              },
-              py: 2,
-              cursor: "pointer",
-            }}
-          >
-            <ListItemText
-              primary={item.text}
+          <ListItem key={item.text} disablePadding>
+            <Button
+              component={Link}
+              to={item.path}
+              fullWidth
               sx={{
                 color:
                   location.pathname === item.path
                     ? "primary.main"
                     : "text.primary",
-                "& .MuiTypography-root": {
-                  fontWeight:
-                    location.pathname === item.path ? "bold" : "normal",
-                },
+                fontWeight: location.pathname === item.path ? "bold" : "normal",
+                justifyContent: "flex-start",
+                px: 2,
+                py: 1,
               }}
-            />
+            >
+              <ListItemText primary={item.text} />
+            </Button>
           </ListItem>
         ))}
+        <Divider sx={{ my: 2 }} />
+        {isAuthenticated ? (
+          <>
+            <ListItem>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  width: "100%",
+                  px: 2,
+                }}
+              >
+                <Avatar sx={{ width: 32, height: 32, mr: 2 }}>
+                  {user?.firstName?.[0]?.toUpperCase()}
+                </Avatar>
+                <Typography variant="body2">
+                  {user?.firstName} {user?.lastName}
+                </Typography>
+              </Box>
+            </ListItem>
+            <ListItem disablePadding>
+              <Button
+                onClick={handleLogout}
+                fullWidth
+                startIcon={<LogoutIcon />}
+                sx={{
+                  justifyContent: "flex-start",
+                  px: 2,
+                  py: 1,
+                  color: "text.primary",
+                }}
+              >
+                <ListItemText primary="Déconnexion" />
+              </Button>
+            </ListItem>
+          </>
+        ) : (
+          <>
+            <ListItem disablePadding>
+              <Button
+                component={Link}
+                to="/connexion"
+                fullWidth
+                sx={{
+                  justifyContent: "flex-start",
+                  px: 2,
+                  py: 1,
+                  color: "primary.main",
+                }}
+              >
+                <ListItemText primary="Connexion" />
+              </Button>
+            </ListItem>
+            <ListItem disablePadding>
+              <Button
+                component={Link}
+                to="/inscription"
+                fullWidth
+                variant="contained"
+                sx={{
+                  mx: 2,
+                  my: 1,
+                }}
+              >
+                S'inscrire
+              </Button>
+            </ListItem>
+          </>
+        )}
+        <Divider sx={{ my: 2 }} />
+        <ListItem>
+          <Box
+            sx={{ display: "flex", justifyContent: "center", width: "100%" }}
+          >
+            <ThemeSwitch />
+          </Box>
+        </ListItem>
       </List>
-      <Divider />
-      <Box sx={{ p: 2, display: "flex", justifyContent: "center" }}>
-        <ThemeSwitch />
-      </Box>
     </Box>
   );
 
@@ -116,81 +208,132 @@ const Navbar = () => {
             GameCollect
           </Typography>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {!isMobile && (
-              <>
-                <Box sx={{ display: "flex", gap: { xs: 1, sm: 2 } }}>
-                  {menuItems.map((item) => (
-                    <Button
-                      key={item.text}
-                      color="primary"
-                      component={Link}
-                      to={item.path}
-                      sx={{
-                        position: "relative",
-                        px: { xs: 1, sm: 2 },
-                        "&::after": {
-                          content: '""',
-                          position: "absolute",
-                          width: "100%",
-                          height: "2px",
-                          bottom: 0,
-                          left: 0,
-                          backgroundColor: "primary.main",
-                          transform:
-                            location.pathname === item.path
-                              ? "scaleX(1)"
-                              : "scaleX(0)",
-                          transition: "transform 0.3s ease-in-out",
-                        },
-                        "&:hover::after": {
-                          transform: "scaleX(1)",
-                        },
-                      }}
-                    >
-                      {item.text}
-                    </Button>
-                  ))}
-                </Box>
-                <ThemeSwitch />
-              </>
-            )}
-
-            {isMobile && (
+          {isMobile ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <ThemeSwitch />
               <IconButton
-                color="primary"
-                aria-label="open drawer"
-                edge="end"
+                color="inherit"
+                aria-label="ouvrir menu"
+                edge="start"
                 onClick={handleDrawerToggle}
-                sx={{ ml: 2 }}
+                sx={{ color: "text.primary" }}
               >
                 <MenuIcon />
               </IconButton>
-            )}
-          </Box>
+            </Box>
+          ) : (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Menu navigation */}
+              <Box sx={{ display: "flex", gap: 1 }}>
+                {menuItems.map((item) => (
+                  <Button
+                    key={item.text}
+                    component={Link}
+                    to={item.path}
+                    sx={{
+                      color:
+                        location.pathname === item.path
+                          ? "primary.main"
+                          : "text.primary",
+                      fontWeight:
+                        location.pathname === item.path ? "bold" : "normal",
+                      "&:hover": {
+                        backgroundColor: "action.hover",
+                      },
+                    }}
+                  >
+                    {item.text}
+                  </Button>
+                ))}
+              </Box>
 
-          <Drawer
-            anchor="right"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            variant="temporary"
-            sx={{
-              display: { xs: "block", sm: "none" },
-              "& .MuiDrawer-paper": {
-                width: "100%",
-                maxWidth: "300px",
-                boxSizing: "border-box",
-                backgroundColor: "background.paper",
-              },
-            }}
-            ModalProps={{
-              keepMounted: true,
-            }}
-          >
-            {drawer}
-          </Drawer>
+              <ThemeSwitch />
+
+              {/* Authentification */}
+              {isAuthenticated ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <IconButton
+                    onClick={handleUserMenuOpen}
+                    sx={{ p: 0 }}
+                    aria-label="menu utilisateur"
+                  >
+                    <Avatar sx={{ width: 32, height: 32 }}>
+                      {user?.firstName?.[0]?.toUpperCase()}
+                    </Avatar>
+                  </IconButton>
+                  <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={handleUserMenuClose}
+                    anchorOrigin={{
+                      vertical: "bottom",
+                      horizontal: "right",
+                    }}
+                    transformOrigin={{
+                      vertical: "top",
+                      horizontal: "right",
+                    }}
+                  >
+                    <MenuItem disabled>
+                      <Typography variant="body2">
+                        {user?.firstName} {user?.lastName}
+                      </Typography>
+                    </MenuItem>
+                    <Divider />
+                    <MenuItem onClick={handleLogout}>
+                      <LogoutIcon sx={{ mr: 1 }} />
+                      Déconnexion
+                    </MenuItem>
+                  </Menu>
+                </Box>
+              ) : (
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    component={Link}
+                    to="/connexion"
+                    sx={{
+                      color: "text.primary",
+                      "&:hover": {
+                        backgroundColor: "action.hover",
+                      },
+                    }}
+                  >
+                    Connexion
+                  </Button>
+                  <Button
+                    component={Link}
+                    to="/inscription"
+                    variant="contained"
+                    size="medium"
+                  >
+                    S'inscrire
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          )}
         </Toolbar>
       </Container>
+
+      {/* Menu mobile drawer */}
+      <Drawer
+        variant="temporary"
+        anchor="right"
+        open={mobileOpen}
+        onClose={handleDrawerToggle}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile.
+        }}
+        sx={{
+          display: { xs: "block", sm: "none" },
+          "& .MuiDrawer-paper": {
+            boxSizing: "border-box",
+            width: 280,
+          },
+        }}
+      >
+        {drawer}
+      </Drawer>
     </AppBar>
   );
 };

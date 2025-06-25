@@ -11,8 +11,10 @@ import Home from "./pages/Home";
 import Games from "./pages/Games";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Collections from "./pages/Collections";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { GamesProvider } from "./contexts/GamesContext";
 import { useThemeMode } from "./contexts/ThemeContext";
 
 // Composant qui gère le thème Material-UI
@@ -85,50 +87,41 @@ const ThemedApp = () => {
     <MuiThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              minHeight: "100vh",
-              width: "100%",
-              bgcolor: "background.default",
-              color: "text.primary",
-              transition: "all 0.3s ease-in-out",
-            }}
-          >
-            <Navbar />
+        <GamesProvider>
+          <Router>
             <Box
-              component="main"
               sx={{
-                flexGrow: 1,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: "100vh",
                 width: "100%",
-                overflowX: "hidden",
+                bgcolor: "background.default",
+                color: "text.primary",
+                transition: "all 0.3s ease-in-out",
               }}
             >
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/jeux" element={<Games />} />
-                <Route path="/connexion" element={<Login />} />
-                <Route path="/inscription" element={<Register />} />
-                <Route
-                  path="/ma-collection"
-                  element={
-                    <Box sx={{ p: { xs: 2, sm: 3 } }}>
-                      Ma Collection (à venir)
-                    </Box>
-                  }
-                />
-                <Route
-                  path="/wishlist"
-                  element={
-                    <Box sx={{ p: { xs: 2, sm: 3 } }}>Wishlist (à venir)</Box>
-                  }
-                />
-              </Routes>
+              <Navbar />
+              <Box
+                component="main"
+                sx={{
+                  flexGrow: 1,
+                  width: "100%",
+                  overflowX: "hidden",
+                }}
+              >
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/jeux" element={<Games />} />
+                  <Route path="/connexion" element={<Login />} />
+                  <Route path="/inscription" element={<Register />} />
+                  <Route path="/collections" element={<Collections />} />
+                  <Route path="/ma-collection" element={<Collections />} />
+                  <Route path="/wishlist" element={<Collections />} />
+                </Routes>
+              </Box>
             </Box>
-          </Box>
-        </Router>
+          </Router>
+        </GamesProvider>
       </AuthProvider>
     </MuiThemeProvider>
   );

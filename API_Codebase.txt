@@ -1,0 +1,1771 @@
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\.env ====
+# Configuration de la base de données
+PORT=3000
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=toto
+DB_NAME=DbGameCollection
+
+# Configuration du serveur
+PORT=3000
+NODE_ENV=development
+
+# JWT
+JWT_SECRET=your_super_secret_jwt_key_here
+JWT_EXPIRES_IN=24h
+
+# API externe pour les jeux (exemple: RAWG API)
+EXTERNAL_GAME_API_KEY=your_api_key_here
+EXTERNAL_GAME_API_URL=https://api.rawg.io/api
+
+# Configuration CORS
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\.gitignore ====
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\APIROUTE.txt ====
+Base URL
+Base URL: http://localhost:3000/api
+Authentication Requirements
+User Token: Required for most routes, obtained via POST /auth/login. Include in headers: Authorization: Bearer <user_token>.
+Admin Token: Required for admin routes, obtained by logging in with an admin account. Include in headers: Authorization: Bearer <admin_token>.
+Authentication Routes (/auth)
+
+Method	Endpoint	Description	Authentication
+POST	/auth/register	Register a new user	None
+POST	/auth/login	Log in and receive a JWT token	None
+POST	/auth/logout	Log out and invalidate token	User Token
+Game Routes (/games)
+
+Method	Endpoint	Description	Authentication
+POST	/games	Create a new game	Admin Token
+GET	/games	List games (with filters/pagination)	None
+GET	/games/:id	Get a specific game by ID	None
+PUT	/games/:id	Update a game	Admin Token
+DELETE	/games/:id	Delete a game	Admin Token
+Collection Routes (/collections)
+
+Method	Endpoint	Description	Authentication
+POST	/collections	Create a new collection	User Token
+GET	/collections	List user’s collections	User Token
+GET	/collections/:id	Get a specific collection by ID	User Token
+PUT	/collections/:id	Update a collection	User Token
+DELETE	/collections/:id	Delete a collection	User Token
+POST	/collections/:id/games	Add a game to a collection	User Token
+Admin Routes (/admin)
+
+Method	Endpoint	Description	Authentication
+GET	/admin/users	List all users	Admin Token
+PUT	/admin/users/:id	Update a user	Admin Token
+DELETE	/admin/users/:id	Delete a user	Admin Token
+GET	/admin/logs	List activity logs (with filters)	Admin Token
+User Routes (/users)
+
+Method	Endpoint	Description	Authentication
+GET	/users/profile	Get authenticated user’s profile	User Token
+PUT	/users/profile	Update authenticated user’s profile	User Token
+POST	/users/favorites	Add a game to user’s favorites	User Token
+DELETE	/users/favorites/:gameId	Remove a game from user’s favorites	User Token
+Health Check Route
+
+Method	Endpoint	Description	Authentication
+GET	/health	Check server status	None
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\app.js ====
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const errorHandler = require('./middleware/errorHandler');
+const authRoutes = require('./routes/auth');
+const gamesRoutes = require('./routes/games');
+const collectionRoutes = require('./routes/collections');
+const adminRoutes = require('./routes/admin');
+const userRoutes = require('./routes/users');
+
+const app = express();
+
+// Security middleware
+app.use(helmet());
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+});
+app.use(limiter);
+
+// Body parsing middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/games', gamesRoutes); // <-- Correction ici
+app.use('/api/collections', collectionRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Error handling middleware
+app.use(errorHandler);
+
+module.exports = app;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\server.js ====
+require('dotenv').config();
+const app = require('./app');
+const sequelize = require('./config/database');
+
+const PORT = process.env.PORT || 3000;
+
+const startServer = async () => {
+  try {
+    // Sync database
+    await sequelize.authenticate();
+    console.log('Database connection established successfully.');
+    
+    await sequelize.sync({ force: false });
+    console.log('Database synchronized.');
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\config\config.js ====
+require('dotenv').config();
+
+module.exports = {
+  env: process.env.NODE_ENV || 'development',
+  port: process.env.PORT || 3000,
+  jwtSecret: process.env.JWT_SECRET || 'your_jwt_secret_key',
+  corsOrigin: process.env.CORS_ORIGIN || '*',
+  gameApiUrl: process.env.GAME_API_URL || 'https://api.example.com/games',
+  gameApiKey: process.env.GAME_API_KEY || 'your_api_key',
+  db: {
+    name: process.env.DB_NAME || 'gamecollect',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 3306,
+  },
+};
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\config\database.js ====
+const { Sequelize } = require('sequelize');
+require('dotenv').config();
+
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'gamecollect',
+  process.env.DB_USER || 'root',
+  process.env.DB_PASSWORD || '',
+  {
+    host: process.env.DB_HOST || 'localhost',
+    dialect: 'mysql',
+    port: process.env.DB_PORT || 3306,
+    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
+  }
+);
+
+module.exports = sequelize;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\controllers\adminController.js ====
+const { validationResult } = require('express-validator');
+const User = require('../models/User');
+const Game = require('../models/Game');
+const ActivityLog = require('../models/ActivityLog');
+const { logAction } = require('../services/logService');
+
+const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.findAll({
+      attributes: { exclude: ['password_hash'] },
+    });
+    res.json(users);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateUser = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const oldValues = user.toJSON();
+    await user.update(req.body);
+    await logAction(req.user.userId, 'update_user', 'users', user.id, oldValues, req.body);
+    res.json({ message: 'User updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    await user.destroy();
+    await logAction(req.user.userId, 'delete_user', 'users', user.id, user.toJSON(), null);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getActivityLogs = async (req, res, next) => {
+  try {
+    const { user_id, action, page = 1, limit = 10 } = req.query;
+    const where = {};
+    if (user_id) where.user_id = user_id;
+    if (action) where.action = action;
+
+    const logs = await ActivityLog.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: (page - 1) * limit,
+      order: [['created_at', 'DESC']],
+    });
+
+    res.json({
+      logs: logs.rows,
+      total: logs.count,
+      pages: Math.ceil(logs.count / limit),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getAllUsers, updateUser, deleteUser, getActivityLogs };
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\controllers\authController.js ====
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { validationResult } = require('express-validator');
+const User = require('../models/User');
+const UserSession = require('../models/UserSession');
+const { logAction } = require('../services/logService');
+
+const register = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { username, email, password, first_name, last_name } = req.body;
+    const password_hash = await bcrypt.hash(password, 10);
+    
+    const user = await User.create({
+      username,
+      email,
+      password_hash,
+      first_name,
+      last_name,
+    });
+
+    await logAction(user.id, 'register', 'users', user.id, null, { username, email });
+    res.status(201).json({ message: 'User registered successfully', userId: user.id });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const login = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+    const user = await User.findOne({ where: { email } });
+    if (!user || !await bcrypt.compare(password, user.password_hash)) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    await UserSession.create({
+      user_id: user.id,
+      token,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    await logAction(user.id, 'login', 'users', user.id, null, null);
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const logout = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (token) {
+      await UserSession.destroy({ where: { token } });
+      await logAction(req.user.userId, 'logout', 'users', req.user.userId, null, null);
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { register, login, logout };
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\controllers\collectionController.js ====
+const { validationResult } = require('express-validator');
+const Collection = require('../models/Collection');
+const CollectionGame = require('../models/CollectionGame');
+const Game = require('../models/Game');
+const { logAction } = require('../services/logService');
+
+const createCollection = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const collection = await Collection.create({
+      ...req.body,
+      user_id: req.user.userId,
+    });
+
+    await logAction(req.user.userId, 'create_collection', 'collections', collection.id, null, req.body);
+    res.status(201).json(collection);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getUserCollections = async (req, res, next) => {
+  try {
+    const collections = await Collection.findAll({
+      where: { user_id: req.user.userId },
+      include: [{ model: Game, through: CollectionGame }],
+    });
+    res.json(collections);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getCollectionById = async (req, res, next) => {
+  try {
+    const collection = await Collection.findOne({
+      where: { id: req.params.id, user_id: req.user.userId },
+      include: [{ model: Game, through: CollectionGame }],
+    });
+    if (!collection) return res.status(404).json({ message: 'Collection not found' });
+    res.json(collection);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateCollection = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const collection = await Collection.findOne({
+      where: { id: req.params.id, user_id: req.user.userId },
+    });
+    if (!collection) return res.status(404).json({ message: 'Collection not found' });
+
+    const oldValues = collection.toJSON();
+    await collection.update(req.body);
+    await logAction(req.user.userId, 'update_collection', 'collections', collection.id, oldValues, req.body);
+    res.json(collection);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteCollection = async (req, res, next) => {
+  try {
+    const collection = await Collection.findOne({
+      where: { id: req.params.id, user_id: req.user.userId },
+    });
+    if (!collection) return res.status(404).json({ message: 'Collection not found' });
+
+    await collection.destroy();
+    await logAction(req.user.userId, 'delete_collection', 'collections', collection.id, collection.toJSON(), null);
+    res.json({ message: 'Collection deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const addGameToCollection = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { game_id, status, rating, personal_notes, play_time_hours, date_completed } = req.body;
+    const collection = await Collection.findOne({
+      where: { id: req.params.id, user_id: req.user.userId },
+    });
+    if (!collection) return res.status(404).json({ message: 'Collection not found' });
+
+    const collectionGame = await CollectionGame.create({
+      collection_id: req.params.id,
+      game_id,
+      status,
+      rating,
+      personal_notes,
+      play_time_hours,
+      date_completed,
+    });
+
+    await logAction(req.user.userId, 'add_game_to_collection', 'collection_games', collectionGame.id, null, req.body);
+    res.status(201).json(collectionGame);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  createCollection,
+  getUserCollections,
+  getCollectionById,
+  updateCollection,
+  deleteCollection,
+  addGameToCollection,
+};
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\controllers\gameController.js ====
+const { validationResult } = require('express-validator');
+const { Op } = require('sequelize');
+const Game = require('../models/Game');
+const Platform = require('../models/Platform');
+const Genre = require('../models/Genre');
+const GamePlatform = require('../models/GamePlatform');
+const GameGenre = require('../models/GameGenre');
+const { logAction } = require('../services/logService');
+
+const createGame = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const gameData = req.body;
+    const game = await Game.create(gameData);
+
+    if (gameData.platforms) {
+      await GamePlatform.bulkCreate(gameData.platforms.map(platform_id => ({
+        game_id: game.id,
+        platform_id,
+      })));
+    }
+
+    if (gameData.genres) {
+      await GameGenre.bulkCreate(gameData.genres.map(genre_id => ({
+        game_id: game.id,
+        genre_id,
+      })));
+    }
+
+    await logAction(req.user.userId, 'create_game', 'games', game.id, null, gameData);
+    res.status(201).json(game);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getGames = async (req, res, next) => {
+  try {
+    const { title, genre, platform, page = 1, limit = 10 } = req.query;
+    const where = {};
+    if (title) where.title = { [Op.iLike]: `%${title}%` };
+    if (genre) where.genre = genre;
+    if (platform) where.platform = platform;
+
+    const games = await Game.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: (page - 1) * limit,
+      include: [
+        { model: Platform, through: GamePlatform },
+        { model: Genre, through: GameGenre },
+      ],
+    });
+
+    res.json({
+      games: games.rows,
+      total: games.count,
+      pages: Math.ceil(games.count / limit),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getGameById = async (req, res, next) => {
+  try {
+    const game = await Game.findByPk(req.params.id, {
+      include: [
+        { model: Platform, through: GamePlatform },
+        { model: Genre, through: GameGenre },
+      ],
+    });
+    if (!game) return res.status(404).json({ message: 'Game not found' });
+    res.json(game);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateGame = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const game = await Game.findByPk(req.params.id);
+    if (!game) return res.status(404).json({ message: 'Game not found' });
+
+    const oldValues = game.toJSON();
+    await game.update(req.body);
+
+    if (req.body.platforms) {
+      await GamePlatform.destroy({ where: { game_id: game.id } });
+      await GamePlatform.bulkCreate(req.body.platforms.map(platform_id => ({
+        game_id: game.id,
+        platform_id,
+      })));
+    }
+
+    if (req.body.genres) {
+      await GameGenre.destroy({ where: { game_id: game.id } });
+      await GameGenre.bulkCreate(req.body.genres.map(genre_id => ({
+        game_id: game.id,
+        genre_id,
+      })));
+    }
+
+    await logAction(req.user.userId, 'update_game', 'games', game.id, oldValues, req.body);
+    res.json(game);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteGame = async (req, res, next) => {
+  try {
+    const game = await Game.findByPk(req.params.id);
+    if (!game) return res.status(404).json({ message: 'Game not found' });
+
+    await game.destroy();
+    await logAction(req.user.userId, 'delete_game', 'games', game.id, game.toJSON(), null);
+    res.json({ message: 'Game deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { createGame, getGames, getGameById, updateGame, deleteGame };
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\controllers\userController.js ====
+const { validationResult } = require('express-validator');
+const bcrypt = require('bcrypt');
+const User = require('../models/User');
+const UserFavorite = require('../models/UserFavorite');
+const { logAction } = require('../services/logService');
+
+const getUserProfile = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.userId, {
+      attributes: { exclude: ['password_hash'] },
+      include: [{ model: Game, through: UserFavorite }],
+    });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateUserProfile = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const user = await User.findByPk(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const oldValues = user.toJSON();
+    const updateData = { ...req.body };
+    if (req.body.password) {
+      updateData.password_hash = await bcrypt.hash(req.body.password, 10);
+      delete updateData.password;
+    }
+
+    await user.update(updateData);
+    await logAction(req.user.userId, 'update_profile', 'users', user.id, oldValues, updateData);
+    res.json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const addFavoriteGame = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { game_id } = req.body;
+    const favorite = await UserFavorite.create({
+      user_id: req.user.userId,
+      game_id,
+    });
+
+    await logAction(req.user.userId, 'add_favorite', 'user_favorites', favorite.id, null, { game_id });
+    res.status(201).json({ message: 'Game added to favorites' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const removeFavoriteGame = async (req, res, next) => {
+  try {
+    const favorite = await UserFavorite.findOne({
+      where: { user_id: req.user.userId, game_id: req.params.gameId },
+    });
+    if (!favorite) return res.status(404).json({ message: 'Favorite not found' });
+
+    await favorite.destroy();
+    await logAction(req.user.userId, 'remove_favorite', 'user_favorites', favorite.id, favorite.toJSON(), null);
+    res.json({ message: 'Game removed from favorites' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getUserProfile, updateUserProfile, addFavoriteGame, removeFavoriteGame };
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\middleware\admin.js ====
+const { logAction } = require('../services/logService');
+
+const adminMiddleware = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      await logAction(req.user.userId, 'unauthorized_admin_access', null, null, null, { path: req.path });
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = adminMiddleware;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\middleware\auth.js ====
+const jwt = require('jsonwebtoken');
+const UserSession = require('../models/UserSession');
+const { logAction } = require('../services/logService');
+const { Op } = require('sequelize'); // Ajout de l'import manquant
+
+const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const session = await UserSession.findOne({ where: { token, expires_at: { [Op.gt]: new Date() } } });
+    if (!session) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = { userId: decoded.userId, role: decoded.role };
+    
+    await logAction(req.user.userId, 'access_protected_route', null, null, null, { path: req.path });
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = authMiddleware;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\middleware\errorHandler.js ====
+const { logAction } = require('../services/logService');
+
+const errorHandler = async (error, req, res, next) => {
+  console.error(error.stack);
+  
+  const errorDetails = {
+    message: error.message,
+    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+  };
+
+  if (req.user?.userId) {
+    await logAction(req.user.userId, 'error', null, null, null, {
+      error: error.message,
+      path: req.path,
+    });
+  }
+
+  if (error.name === 'SequelizeValidationError') {
+    return res.status(400).json({
+      message: 'Validation error',
+      errors: error.errors.map(e => e.message),
+    });
+  }
+
+  if (error.name === 'SequelizeUniqueConstraintError') {
+    return res.status(409).json({
+      message: 'Duplicate entry',
+      errors: error.errors.map(e => e.message),
+    });
+  }
+
+  res.status(error.status || 500).json({
+    message: error.message || 'Internal Server Error',
+    ...errorDetails,
+  });
+};
+
+module.exports = errorHandler;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\middleware\validation.js ====
+const { body, param, query } = require('express-validator');
+const User = require('../models/User');
+const Game = require('../models/Game');
+const Collection = require('../models/Collection');
+const Platform = require('../models/Platform');
+const Genre = require('../models/Genre');
+
+const userValidationRules = [
+  body('username').notEmpty().isLength({ max: 50 }).custom(async (value) => {
+    const user = await User.findOne({ where: { username: value } });
+    if (user) throw new Error('Username already exists');
+    return true;
+  }),
+  body('email').isEmail().custom(async (value) => {
+    const user = await User.findOne({ where: { email: value } });
+    if (user) throw new Error('Email already exists');
+    return true;
+  }),
+  body('password').isLength({ min: 6 }),
+  body('first_name').optional().isLength({ max: 50 }),
+  body('last_name').optional().isLength({ max: 50 }),
+];
+
+const loginValidationRules = [
+  body('email').isEmail(),
+  body('password').notEmpty(),
+];
+
+const gameValidationRules = [
+  body('title').notEmpty().isLength({ max: 255 }),
+  body('external_api_id').optional().isLength({ max: 100 }),
+  body('description').optional().isString(),
+  body('release_date').optional().isDate(),
+  body('genre').optional().isLength({ max: 100 }),
+  body('platform').optional().isLength({ max: 100 }),
+  body('developer').optional().isLength({ max: 100 }),
+  body('publisher').optional().isLength({ max: 100 }),
+  body('cover_image_url').optional().isURL({ require_protocol: false }),
+  body('metacritic_score').optional().isInt({ min: 0, max: 100 }),
+  body('rating').optional().isIn(['E', 'E10+', 'T', 'M', 'AO', 'RP']),
+  body('platforms').optional().isArray().custom(async (value) => {
+    const platforms = await Platform.findAll({ where: { id: value } });
+    if (platforms.length !== value.length) throw new Error('Invalid platform IDs');
+    return true;
+  }),
+  body('genres').optional().isArray().custom(async (value) => {
+    const genres = await Genre.findAll({ where: { id: value } });
+    if (genres.length !== value.length) throw new Error('Invalid genre IDs');
+    return true;
+  }),
+];
+
+const collectionValidationRules = [
+  body('name').notEmpty().isLength({ max: 100 }),
+  body('description').optional().isString(),
+  body('is_public').optional().isBoolean(),
+];
+
+const collectionGameValidationRules = [
+  body('game_id').isInt().custom(async (value) => {
+    const game = await Game.findByPk(value);
+    if (!game) throw new Error('Invalid game ID');
+    return true;
+  }),
+  body('status').optional().isIn(['owned', 'wishlist', 'playing', 'completed', 'dropped']),
+  body('rating').optional().isInt({ min: 1, max: 10 }),
+  body('personal_notes').optional().isString(),
+  body('play_time_hours').optional().isFloat({ min: 0 }),
+  body('date_completed').optional().isDate(),
+];
+
+const idParamValidation = [
+  param('id').isInt().custom(async (value, { req }) => {
+    const model = req.baseUrl.includes('collections') ? Collection : Game;
+    const item = await model.findByPk(value);
+    if (!item) throw new Error('Invalid ID');
+    return true;
+  }),
+];
+
+module.exports = {
+  userValidationRules,
+  loginValidationRules,
+  gameValidationRules,
+  collectionValidationRules,
+  collectionGameValidationRules,
+  idParamValidation,
+};
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\ActivityLog.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const User = require('./User');
+
+const ActivityLog = sequelize.define('ActivityLog', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: User,
+      key: 'id',
+    },
+  },
+  action: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+  },
+  table_name: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  record_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  old_values: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  new_values: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  ip_address: {
+    type: DataTypes.STRING(45),
+    allowNull: true,
+  },
+  user_agent: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'activity_logs',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
+  indexes: [
+    { fields: ['user_id'] },
+    { fields: ['action'] },
+    { fields: ['table_name'] },
+    { fields: ['created_at'] },
+  ],
+});
+
+ActivityLog.belongsTo(User, { foreignKey: 'user_id' });
+
+module.exports = ActivityLog;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\Collection.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const User = require('./User');
+
+const Collection = sequelize.define('Collection', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'id',
+    },
+  },
+  name: {
+    type: DataTypes.STRING(100),
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  is_public: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'collections',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  indexes: [
+    { fields: ['user_id'] },
+  ],
+});
+
+Collection.belongsTo(User, { foreignKey: 'user_id' });
+
+module.exports = Collection;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\CollectionGame.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const Collection = require('./Collection');
+const Game = require('./Game');
+
+const CollectionGame = sequelize.define('CollectionGame', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  collection_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Collection,
+      key: 'id',
+    },
+  },
+  game_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Game,
+      key: 'id',
+    },
+  },
+  status: {
+    type: DataTypes.ENUM('owned', 'wishlist', 'playing', 'completed', 'dropped'),
+    defaultValue: 'owned',
+  },
+  rating: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    validate: {
+      min: 1,
+      max: 10,
+    },
+  },
+  personal_notes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  play_time_hours: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+  },
+  date_completed: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'collection_games',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false, // Désactive la colonne updated_at si elle n'existe pas en base
+  indexes: [
+    { fields: ['collection_id'] },
+    { fields: ['game_id'] },
+    { fields: ['status'] },
+    { 
+      unique: true, 
+      fields: ['collection_id', 'game_id'],
+      name: 'unique_collection_game'
+    },
+  ],
+});
+
+// Définir les associations
+CollectionGame.belongsTo(Collection, { foreignKey: 'collection_id' });
+CollectionGame.belongsTo(Game, { foreignKey: 'game_id' });
+
+Collection.belongsToMany(Game, { 
+  through: CollectionGame, 
+  foreignKey: 'collection_id',
+  otherKey: 'game_id'
+});
+
+Game.belongsToMany(Collection, { 
+  through: CollectionGame, 
+  foreignKey: 'game_id',
+  otherKey: 'collection_id'
+});
+
+module.exports = CollectionGame;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\Game.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const Game = sequelize.define('Game', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  external_api_id: {
+    type: DataTypes.STRING(100),
+    unique: true,
+    allowNull: true,
+  },
+  title: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  release_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
+  genre: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+  platform: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+  developer: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+  publisher: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+  cover_image_url: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+  },
+  metacritic_score: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  rating: {
+    type: DataTypes.ENUM('E', 'E10+', 'T', 'M', 'AO', 'RP'),
+    defaultValue: 'RP',
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'games',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  indexes: [
+    { fields: ['title'] },
+    { fields: ['genre'] },
+    { fields: ['platform'] },
+    { fields: ['release_date'] },
+  ],
+});
+
+module.exports = Game;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\GameGenre.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const Game = require('./Game');
+const Genre = require('./Genre');
+
+const GameGenre = sequelize.define('GameGenre', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  game_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Game,
+      key: 'id',
+    },
+  },
+  genre_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Genre,
+      key: 'id',
+    },
+  },
+}, {
+  tableName: 'game_genres',
+  timestamps: false,
+});
+
+Game.belongsToMany(Genre, { 
+  through: GameGenre, 
+  foreignKey: 'game_id', 
+  otherKey: 'genre_id' 
+});
+Genre.belongsToMany(Game, { 
+  through: GameGenre, 
+  foreignKey: 'genre_id', 
+  otherKey: 'game_id' 
+});
+
+module.exports = GameGenre;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\GamePlatform.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const Game = require('./Game');
+const Platform = require('./Platform');
+
+const GamePlatform = sequelize.define('GamePlatform', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  game_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Game,
+      key: 'id',
+    },
+  },
+  platform_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Platform,
+      key: 'id',
+    },
+  },
+}, {
+  tableName: 'game_platforms',
+  timestamps: false,
+});
+
+Game.belongsToMany(Platform, { 
+  through: GamePlatform, 
+  foreignKey: 'game_id', 
+  otherKey: 'platform_id' 
+});
+Platform.belongsToMany(Game, { 
+  through: GamePlatform, 
+  foreignKey: 'platform_id', 
+  otherKey: 'game_id' 
+});
+
+module.exports = GamePlatform;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\Genre.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const Genre = sequelize.define('Genre', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  name: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'genres',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
+});
+
+module.exports = Genre;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\Platform.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const Platform = sequelize.define('Platform', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  name: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: false,
+  },
+  abbreviation: {
+    type: DataTypes.STRING(10),
+    allowNull: true,
+  },
+  manufacturer: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  release_year: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'platforms',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
+});
+
+module.exports = Platform;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\User.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  username: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: false,
+  },
+  email: {
+    type: DataTypes.STRING(100),
+    unique: true,
+    allowNull: false,
+  },
+  password_hash: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+  },
+  first_name: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  last_name: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  role: {
+    type: DataTypes.ENUM('user', 'admin'),
+    defaultValue: 'user',
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'users',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
+
+module.exports = User;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\UserFavorite.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const User = require('./User');
+const Game = require('./Game');
+
+const UserFavorite = sequelize.define('UserFavorite', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'id',
+    },
+  },
+  game_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Game,
+      key: 'id',
+    },
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'user_favorites',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
+  indexes: [
+    { fields: ['user_id'] },
+    { fields: ['game_id'] },
+    {
+      unique: true,
+      fields: ['user_id', 'game_id'],
+      name: 'unique_user_favorite'
+    },
+  ],
+});
+
+// Associations
+User.belongsToMany(Game, { through: UserFavorite, foreignKey: 'user_id', otherKey: 'game_id' });
+Game.belongsToMany(User, { through: UserFavorite, foreignKey: 'game_id', otherKey: 'user_id' });
+
+module.exports = UserFavorite;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\models\UserSession.js ====
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const UserSession = sequelize.define('UserSession', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  token: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+  },
+  expires_at: {
+    type: DataTypes.DATE,
+    allowNull: false,
+  },
+}, {
+  tableName: 'user_sessions',
+  timestamps: false,
+});
+
+module.exports = UserSession;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\routes\admin.js ====
+const express = require('express');
+const router = express.Router();
+const adminController = require('../controllers/adminController');
+const authMiddleware = require('../middleware/auth');
+const adminMiddleware = require('../middleware/admin');
+const { userValidationRules, idParamValidation } = require('../middleware/validation');
+
+router.get('/users', authMiddleware, adminMiddleware, adminController.getAllUsers);
+router.put('/users/:id', authMiddleware, adminMiddleware, userValidationRules, idParamValidation, adminController.updateUser);
+router.delete('/users/:id', authMiddleware, adminMiddleware, idParamValidation, adminController.deleteUser);
+router.get('/logs', authMiddleware, adminMiddleware, adminController.getActivityLogs);
+
+module.exports = router;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\routes\auth.js ====
+const express = require('express');
+const router = express.Router();
+const authController = require('../controllers/authController');
+const { userValidationRules, loginValidationRules } = require('../middleware/validation');
+
+router.post('/register', userValidationRules, authController.register);
+router.post('/login', loginValidationRules, authController.login);
+router.post('/logout', authController.logout);
+
+module.exports = router;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\routes\collections.js ====
+const express = require('express');
+const router = express.Router();
+const collectionController = require('../controllers/collectionController');
+const authMiddleware = require('../middleware/auth');
+const { collectionValidationRules, collectionGameValidationRules, idParamValidation } = require('../middleware/validation');
+
+router.post('/', authMiddleware, collectionValidationRules, collectionController.createCollection);
+router.get('/', authMiddleware, collectionController.getUserCollections);
+router.get('/:id', authMiddleware, idParamValidation, collectionController.getCollectionById);
+router.put('/:id', authMiddleware, collectionValidationRules, idParamValidation, collectionController.updateCollection);
+router.delete('/:id', authMiddleware, idParamValidation, collectionController.deleteCollection);
+router.post('/:id/games', authMiddleware, collectionGameValidationRules, idParamValidation, collectionController.addGameToCollection);
+
+module.exports = router;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\routes\games.js ====
+const express = require('express');
+const router = express.Router();
+const gameController = require('../controllers/gameController');
+const authMiddleware = require('../middleware/auth');
+const adminMiddleware = require('../middleware/admin');
+const { gameValidationRules, idParamValidation } = require('../middleware/validation');
+
+router.post('/', authMiddleware, adminMiddleware, gameValidationRules, gameController.createGame);
+router.get('/', gameController.getGames);
+router.get('/:id', idParamValidation, gameController.getGameById);
+router.put('/:id', authMiddleware, adminMiddleware, gameValidationRules, idParamValidation, gameController.updateGame);
+router.delete('/:id', authMiddleware, adminMiddleware, idParamValidation, gameController.deleteGame);
+
+module.exports = router;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\routes\users.js ====
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+const authMiddleware = require('../middleware/auth');
+const { userValidationRules, idParamValidation } = require('../middleware/validation');
+
+router.get('/profile', authMiddleware, userController.getUserProfile);
+router.put('/profile', authMiddleware, userValidationRules, userController.updateUserProfile);
+router.post('/favorites', authMiddleware, idParamValidation, userController.addFavoriteGame);
+router.delete('/favorites/:gameId', authMiddleware, idParamValidation, userController.removeFavoriteGame);
+
+module.exports = router;
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\services\authService.js ====
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const User = require('../models/User');
+const UserSession = require('../models/UserSession');
+
+class AuthService {
+  async generateToken(user) {
+    const payload = { userId: user.id, role: user.role };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+    
+    await UserSession.create({
+      user_id: user.id,
+      token,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+    
+    return token;
+  }
+
+  async verifyPassword(password, passwordHash) {
+    return await bcrypt.compare(password, passwordHash);
+  }
+
+  async hashPassword(password) {
+    return await bcrypt.hash(password, 10);
+  }
+
+  async invalidateToken(token) {
+    await UserSession.destroy({ where: { token } });
+  }
+}
+
+module.exports = new AuthService();
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\services\gameApiService.js ====
+const axios = require('axios');
+
+class GameApiService {
+  constructor() {
+    this.apiBaseUrl = process.env.GAME_API_URL || 'https://api.example.com/games';
+    this.apiKey = process.env.GAME_API_KEY;
+  }
+
+  async fetchGameById(externalId) {
+    try {
+      const response = await axios.get(`${this.apiBaseUrl}/${externalId}`, {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch game: ${error.message}`);
+    }
+  }
+
+  async searchGames(query) {
+    try {
+      const response = await axios.get(this.apiBaseUrl, {
+        params: { search: query },
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to search games: ${error.message}`);
+    }
+  }
+
+  async fetchGameDetails(externalId) {
+    try {
+      const response = await axios.get(`${this.apiBaseUrl}/${externalId}/details`, {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch game details: ${error.message}`);
+    }
+  }
+}
+
+module.exports = new GameApiService();
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\services\logService.js ====
+const ActivityLog = require('../models/ActivityLog');
+
+const logAction = async (userId, action, tableName, recordId, oldValues, newValues, req = {}) => {
+  try {
+    await ActivityLog.create({
+      user_id: userId,
+      action,
+      table_name: tableName,
+      record_id: recordId,
+      old_values: oldValues ? JSON.stringify(oldValues) : null,
+      new_values: newValues ? JSON.stringify(newValues) : null,
+      ip_address: req.ip || null,
+      user_agent: req.headers?.['user-agent'] || null,
+    });
+  } catch (error) {
+    console.error('Failed to log action:', error.message);
+  }
+};
+
+module.exports = { logAction };
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\utils\constants.js ====
+module.exports = {
+  ROLES: {
+    USER: 'user',
+    ADMIN: 'admin',
+  },
+  GAME_STATUSES: ['owned', 'wishlist', 'playing', 'completed', 'dropped'],
+  GAME_RATINGS: ['E', 'E10+', 'T', 'M', 'AO', 'RP'],
+  MAX_RATING: 10,
+  MIN_RATING: 1,
+  DEFAULT_PAGE_LIMIT: 10,
+  JWT_EXPIRES_IN: '1d',
+};
+
+
+==== C:\Users\bayes\LovableAppAPIGameCollect\hello-express-world-show\utils\helpers.js ====
+const formatResponse = (data, message = 'Success', status = 200) => ({
+  status,
+  message,
+  data,
+});
+
+const parsePagination = (query) => {
+  const page = parseInt(query.page) || 1;
+  const limit = parseInt(query.limit) || 10;
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+};
+
+const sanitizeInput = (input) => {
+  if (typeof input === 'string') {
+    return input.trim().replace(/[<>"'&]/g, '');
+  }
+  return input;
+};
+
+module.exports = { formatResponse, parsePagination, sanitizeInput };
+
+

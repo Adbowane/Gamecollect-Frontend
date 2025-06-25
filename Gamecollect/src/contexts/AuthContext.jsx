@@ -16,21 +16,31 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
 
+  // Vérification initiale au chargement de l'app
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem("token");
-      if (token) {
-        try {
-          const response = await userService.getProfile();
-          setUser(response.data);
-        } catch (err) {
-          localStorage.removeItem("token");
-          setError(err.message);
-        }
+      if (!token) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        console.log("🔐 Vérification du token au démarrage...");
+        const response = await userService.getProfile();
+        console.log("✅ Utilisateur connecté:", response.data);
+        setUser(response.data);
+        setError("");
+      } catch (err) {
+        console.warn("⚠️ Token invalide, déconnexion:", err);
+        localStorage.removeItem("token");
+        setUser(null);
+        setError("");
+      } finally {
+        setLoading(false);
+      }
     };
 
     initAuth();
@@ -38,13 +48,19 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
+      console.log("🔐 Tentative de connexion...");
       const response = await authService.login(credentials);
       const { token, user: userData } = response.data;
+
+      console.log("✅ Connexion réussie:", userData);
+
       localStorage.setItem("token", token);
       setUser(userData);
-      setError(null);
+      setError("");
+
       return userData;
     } catch (err) {
+      console.error("❌ Erreur de connexion:", err);
       setError(err.response?.data?.message || "Erreur de connexion");
       throw err;
     }
@@ -52,63 +68,16 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      console.log("🔐 AuthContext - Tentative d'inscription:", userData);
-
+      console.log("🔐 Tentative d'inscription:", userData);
       const response = await authService.register(userData);
-      console.log("🔐 AuthContext - Réponse d'inscription:", response);
+      console.log("✅ Inscription réussie:", response.data);
 
-      // Le backend retourne { "message": "User registered successfully", "userId": 1 }
-      // Pas de token, donc on fait un login automatique après inscription
-      if (response.data.message === "User registered successfully") {
-        console.log(
-          "✅ Inscription réussie, tentative de connexion automatique..."
-        );
-
-        // Login automatique avec les credentials utilisés pour l'inscription
-        const loginResponse = await authService.login({
-          email: userData.email,
-          password: userData.password,
-        });
-
-        console.log(
-          "🔐 AuthContext - Réponse de connexion auto:",
-          loginResponse
-        );
-
-        const { token, user: newUser } = loginResponse.data;
-
-        if (!token) {
-          throw new Error("Token manquant dans la réponse de connexion");
-        }
-
-        if (!newUser) {
-          throw new Error(
-            "Données utilisateur manquantes dans la réponse de connexion"
-          );
-        }
-
-        localStorage.setItem("token", token);
-        setUser(newUser);
-        setError(null);
-
-        console.log(
-          "✅ AuthContext - Inscription + connexion réussies, utilisateur connecté:",
-          newUser
-        );
-        return newUser;
-      } else {
-        throw new Error("Réponse d'inscription inattendue");
-      }
+      setError("");
+      return response.data;
     } catch (err) {
-      console.error("❌ AuthContext - Erreur d'inscription:", err);
-
+      console.error("❌ Erreur d'inscription:", err);
       const errorMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Erreur d'inscription";
-
-      console.error("❌ AuthContext - Message d'erreur:", errorMessage);
+        err.response?.data?.message || err.message || "Erreur d'inscription";
       setError(errorMessage);
       throw err;
     }
@@ -116,13 +85,14 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      console.log("🚪 Déconnexion...");
       await authService.logout();
     } catch (err) {
       console.error("Erreur lors de la déconnexion:", err);
     } finally {
       localStorage.removeItem("token");
       setUser(null);
-      setError(null);
+      setError("");
     }
   };
 
@@ -137,11 +107,13 @@ export const AuthProvider = ({ children }) => {
     isAdmin: user?.role === "admin",
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  console.log("🔍 État d'authentification:", {
+    user: user?.username || "non connecté",
+    isAuthenticated: !!user,
+    loading,
+  });
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export default AuthContext;

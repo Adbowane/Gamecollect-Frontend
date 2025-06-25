@@ -19,7 +19,7 @@ const Login = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
-  const { login, error, loading } = useAuth();
+  const { login, loading } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -27,6 +27,7 @@ const Login = () => {
   });
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -43,32 +44,14 @@ const Login = () => {
     }
   };
 
-  const validateForm = () => {
-    const errors = {};
-
-    if (!formData.email) {
-      errors.email = "L'email est requis";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = "Format d'email invalide";
-    }
-
-    if (!formData.password) {
-      errors.password = "Le mot de passe est requis";
-    } else if (formData.password.length < 6) {
-      errors.password = "Le mot de passe doit contenir au moins 6 caractères";
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) {
+    if (!formData.email || !formData.password) {
+      setError("Veuillez remplir tous les champs");
       return;
     }
 
+    setError("");
     setIsSubmitting(true);
 
     try {
@@ -76,11 +59,26 @@ const Login = () => {
         email: formData.email,
         password: formData.password,
       });
-
-      // Redirection après connexion réussie
       navigate("/");
     } catch (err) {
       console.error("Erreur de connexion:", err);
+
+      let errorMessage = "Erreur de connexion";
+
+      if (err.response?.status === 401) {
+        errorMessage = "Email ou mot de passe incorrect";
+      } else if (err.response?.status === 429) {
+        errorMessage =
+          "Trop de tentatives de connexion. Veuillez patienter quelques minutes.";
+      } else if (err.response?.status === 500) {
+        errorMessage = "Erreur serveur. Veuillez réessayer plus tard.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -134,9 +132,9 @@ const Login = () => {
           </Typography>
         </Box>
 
-        {error && (
+        {errorMessage && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
+            {errorMessage}
           </Alert>
         )}
 

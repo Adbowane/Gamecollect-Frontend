@@ -34,6 +34,13 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
 
+  // Debug de l'état d'authentification
+  console.log("🔍 Navbar - État auth:", {
+    user: user?.username || "null",
+    isAuthenticated,
+    userObject: user,
+  });
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };

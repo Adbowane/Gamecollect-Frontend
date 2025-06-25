@@ -102,28 +102,42 @@ const Register = () => {
     setIsSubmitting(true);
 
     try {
-      const userData = {
-        username: formData.username.trim(),
+      await register({
+        username: formData.username,
         email: formData.email,
         password: formData.password,
-        first_name: formData.firstName.trim(),
-        last_name: formData.lastName.trim(),
-      };
-
-      console.log("📝 Tentative d'inscription avec:", userData);
-
-      const result = await register(userData);
-      console.log("✅ Inscription réussie:", result);
-
-      // Redirection après inscription réussie
-      navigate("/");
-    } catch (err) {
-      console.error("❌ Erreur d'inscription:", err);
-      console.error("❌ Détails de l'erreur:", {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
       });
+
+      // Redirection vers la page de connexion après inscription réussie
+      alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
+      navigate("/connexion");
+    } catch (err) {
+      console.error("Erreur d'inscription:", err);
+
+      let errorMessage = "Erreur lors de l'inscription";
+
+      if (err.response?.status === 400) {
+        if (err.response.data?.errors) {
+          // Erreurs de validation spécifiques
+          const validationErrors = err.response.data.errors;
+          errorMessage = validationErrors.map((e) => e.msg).join(", ");
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
+        }
+      } else if (err.response?.status === 409) {
+        errorMessage = "Cet email ou nom d'utilisateur est déjà utilisé";
+      } else if (err.response?.status === 429) {
+        errorMessage =
+          "Trop de tentatives d'inscription. Veuillez patienter quelques minutes.";
+      } else if (err.response?.status === 500) {
+        errorMessage = "Erreur serveur. Veuillez réessayer plus tard.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setFormErrors({ general: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -200,6 +214,12 @@ const Register = () => {
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
+          </Alert>
+        )}
+
+        {formErrors.general && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {formErrors.general}
           </Alert>
         )}
 

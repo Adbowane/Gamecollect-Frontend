@@ -1,6 +1,6 @@
 {
   "name": "gamecollect",
-  "private": true,
+  "homepage": "https://Adbowane.github.io/Gamecollect-Frontend/",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -8,6 +8,8 @@
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
     "generate-icons": "node scripts/generate-icons.js"
   },
   "dependencies": {
